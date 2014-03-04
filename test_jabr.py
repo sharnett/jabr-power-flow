@@ -1,6 +1,7 @@
 from jabr import z2y
 from numpy.testing import assert_almost_equal
 
+
 def test_true():
     assert True
 
