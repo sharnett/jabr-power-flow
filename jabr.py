@@ -2,6 +2,7 @@ from __future__ import division
 from mosek.fusion import DenseMatrix, Model, Expr, Domain, ObjectiveSense
 from numpy import array, sqrt
 from math import sin, cos, asin, pi
+from scipy.sparse import dok_matrix
 
 S2 = sqrt(2)
 
@@ -85,6 +86,18 @@ def process_answer(ans):
     print(2*sqrt(2)*g*U[0]-g*(R[0]+R[1])+b*(I[0]+I[1]))
     print(g*(V[0]**2-V[0]*V[1]*cos(t01)) - b*V[0]*V[1]*sin(-t01),
           g*(V[0]**2-V[0]*V[2]*cos(t02)) - b*V[0]*V[2]*sin(-t02))
+
+
+def build_U_matrix(susceptances):
+    n = susceptances.shape[0]
+    G = 
+    U = dok_matrix((n-1, n))
+    S2 = 2**.5
+    for i in range(n-1):
+        U[i, i+1] =
+
+def build_constraint_matrix(susceptances):
+    pass
 
 if __name__ == '__main__':
     process_answer(jabr5())
