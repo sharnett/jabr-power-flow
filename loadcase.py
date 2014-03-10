@@ -1,6 +1,5 @@
 from jabr import z2y
 from scipy.sparse import dok_matrix
-from numpy import complex64
 
 
 def load_buses(casefileobj):
@@ -48,7 +47,7 @@ def renumber_buses(demand_dict, root):
 
 def load_gens(casefileobj, e2i):
     """ returns a dictionary of generator buses and their power output. internal
-    numbering"""
+    numbering """
     line = ''
     gens = {}
     while line.find("mpc.gen = [") == -1:
@@ -71,12 +70,19 @@ def adjust_demands(demands, gens):
 
 
 def load_branches(casefileobj, e2i):
-    """ returns a 'dictionary of keys' sparse matrix of branch susceptances.
-    uses internal numbering
+    """ returns 'dictionary of keys' sparse matrices for branch conductance and
+    susceptance. also returns a list of (from_bus, to_bus) connections, and a
+    dictionary that inverts the list. uses internal numbering
+
+    assumes there are exactly n-1 branches
     """
     line = ''
     n = len(e2i)
-    susceptances = dok_matrix((n, n), dtype=complex64)
+    G = dok_matrix((n, n))
+    B = dok_matrix((n, n))
+    branch_list = [None]*(n-1)
+    branch_map = {}
+    i = 0
     while line.find("mpc.branch = [") == -1:
         line = casefileobj.readline()
     line = casefileobj.readline()
@@ -85,20 +91,45 @@ def load_branches(casefileobj, e2i):
         fbus, tbus = e2i[int(words[0])], e2i[int(words[1])]
         r, x = float(words[2]), float(words[3])
         g, b = z2y(r, x)
-        susceptances[fbus, tbus] = g+b*1j
-        susceptances[tbus, fbus] = g+b*1j
+        #if g < 1e-8:
+            #g = 1e-8
+        G[fbus, tbus] = g
+        G[tbus, fbus] = g
+        B[fbus, tbus] = b
+        B[tbus, fbus] = b
+        branch_list[i] = (fbus, tbus) if fbus < tbus else (tbus, fbus)
         line = casefileobj.readline()
-    return susceptances
+        i += 1
+    assert i == n-1, "it doesn't look like there are exactly n-1 branches"
+    branch_list.sort()
+    for i, (fbus, tbus) in enumerate(branch_list):
+        branch_map[(fbus, tbus)] = i
+        branch_map[(tbus, fbus)] = i
+    return G, B, branch_list, branch_map
+
+
+class Case(object):
+    pass
 
 
 def load_case(casefile):
-    """ returns list of demands, matrix of susceptances, root voltage, and
-    internal to external numbering map. uses internal numbering
+    """ returns list of demands, conductance and susceptance matrices, list of
+    branches, map of branches to list index, root voltage, and internal to
+    external numbering map. uses internal numbering
     """
     casefileobj = open(casefile)
     demand_dict, root, vhat = load_buses(casefileobj)
     e2i, i2e, demands = renumber_buses(demand_dict, root)
     gens = load_gens(casefileobj, e2i)
     adjust_demands(demands, gens)
-    susceptances = load_branches(casefileobj, e2i)
-    return demands, susceptances, vhat, i2e
+    G, B, branch_list, branch_map = load_branches(casefileobj, e2i)
+    c = Case()
+    c.demands = demands
+    c.G = G
+    c.B = B
+    c.branch_list = branch_list
+    c.branch_map = branch_map
+    c.vhat = vhat
+    c.i2e = i2e
+    return c
+

@@ -1,8 +1,8 @@
 from __future__ import division
-from mosek.fusion import DenseMatrix, Model, Expr, Domain, ObjectiveSense
-from numpy import array, sqrt
+from mosek.fusion import Matrix, DenseMatrix, Model, Expr, Domain, ObjectiveSense, SolutionError
+from numpy import array, sqrt, real, imag
 from math import sin, cos, asin, pi
-from scipy.sparse import dok_matrix
+from scipy.sparse import dok_matrix, hstack
 
 S2 = sqrt(2)
 
@@ -88,16 +88,110 @@ def process_answer(ans):
           g*(V[0]**2-V[0]*V[2]*cos(t02)) - b*V[0]*V[2]*sin(-t02))
 
 
-def build_U_matrix(susceptances):
-    n = susceptances.shape[0]
-    G = 
-    U = dok_matrix((n-1, n))
+def build_U_matrices(G, B):
+    n = G.shape[0]
+    Ureal = dok_matrix((n-1, n))
+    Ureac = dok_matrix((n-1, n))
     S2 = 2**.5
-    for i in range(n-1):
-        U[i, i+1] =
+    for i in range(1, n):
+        Ureal[i-1, i] = S2*G[i, :].sum()
+        Ureac[i-1, i] = -S2*B[i, :].sum()
+    return Ureal, Ureac
 
-def build_constraint_matrix(susceptances):
-    pass
+
+def build_R_matrices(G, B, branch_map):
+    """ rows are buses 2 to n; cols are branches  """
+    n = G.shape[0]
+    Rreal = dok_matrix((n-1, n-1))
+    Rreac = dok_matrix((n-1, n-1))
+    for fbus in range(1, n):
+        for tbus in B[fbus, :].nonzero()[1]:
+            branch = branch_map[(fbus, tbus)]
+            Rreal[fbus-1, branch] = -G[fbus, tbus]
+            Rreac[fbus-1, branch] = B[fbus, tbus]
+    return Rreal, Rreac
+
+
+def build_I_matrices(G, B, branch_map):
+    """ rows are buses 2 to n; cols are branches  """
+    n = B.shape[0]
+    Ireal = dok_matrix((n-1, n-1))
+    Ireac = dok_matrix((n-1, n-1))
+    for fbus in range(1, n):
+        for tbus in B[fbus, :].nonzero()[1]:
+            branch = branch_map[(fbus, tbus)]
+            s = -1 if fbus < tbus else 1
+            Ireal[fbus-1, branch] = s*B[fbus, tbus]
+            Ireac[fbus-1, branch] = s*G[fbus, tbus]
+    return Ireal, Ireac
+
+
+def build_constraint_matrix(G, B, branch_map):
+    Ureal, Ureac = build_U_matrices(G, B)
+    Rreal, Rreac = build_R_matrices(G, B, branch_map)
+    Ireal, Ireac = build_I_matrices(G, B, branch_map)
+    Areal = hstack([Ureal, Rreal, Ireal])
+    Areac = hstack([Ureac, Rreac, Ireac])
+    return Areal, Areac
+
+
+def convert_matrix_to_mosek(M):
+    """ converts coo_matrix to mosek SparseMatrix type  """
+    m, n = M.shape
+    rows = M.row.astype(int).tolist()
+    cols = M.col.astype(int).tolist()
+    vals = M.data.tolist()
+    return Matrix.sparse(m, n, rows, cols, vals)
+
+
+def build_mosek_model(case):
+    """ the mosek Model type seems to be a bit brittle and doesn't like being
+    passed around, inspecting its attributes, etc. Simplest to do this all in
+    one shot rather than splitting it into smaller pieces
+    """
+    Areal, Areac = build_constraint_matrix(case.G, case.B, case.branch_map)
+    Areal, Areac = map(convert_matrix_to_mosek, (Areal, Areac))
+    P = -1 * real(case.demands)[1:]
+    Q = -1 * imag(case.demands)[1:]
+    branches = case.branch_list
+    n = len(case.demands)
+    v = case.vhat
+    with Model('jabr%d' % n) as M:
+        u = M.variable("u", n, Domain.greaterThan(0.0))
+        R = M.variable("R", n-1, Domain.greaterThan(0.0))
+        I = M.variable("I", n-1, Domain.unbounded())
+
+        expr = lambda x: x.asExpr()
+
+        def cone_constraint(fbus, tbus, branch):
+            x = Expr.vstack(map(expr, [u.index(fbus), u.index(tbus), R.index(branch), I.index(branch)]))
+            M.constraint("cone%d_%d" % (fbus, tbus), x, Domain.inRotatedQCone())
+
+        M.constraint("u0",  u.index(0).asExpr(), Domain.equalsTo(v*v/sqrt(2)))
+        for branch, (fbus, tbus) in enumerate(branches):
+            cone_constraint(fbus, tbus, branch)
+        M.constraint("flow_real", Expr.mul(Areal, Expr.vstack(u, R, I)), Domain.equalsTo(P))
+        M.constraint("flow_reac", Expr.mul(Areac, Expr.vstack(u, R, I)), Domain.equalsTo(Q))
+
+        M.objective("maxRsum", ObjectiveSense.Maximize, Expr.sum(R))
+        out_file = open('/Users/srharnett/Dropbox/power/jabr-power-flow/mosek.log', 'a')
+        M.setLogHandler(out_file)
+        #M.setSolverParam("intpntCoTolPfeas", 1.0e-2)
+        #M.setSolverParam("intpntCoTolDfeas", 1.0e-2)
+        #M.setSolverParam("intpntCoTolRelGap", 1.0e-2)
+        M.solve()
+        try:
+            return u.level(), R.level(), I.level()
+        except SolutionError:
+            status = M.getPrimalSolutionStatus()
+            raise SolutionError("mosek failed to converge: %s (check log)" % status)
+
+
+def recover_original_variables(u, R, I):
+    """ incomplete. right now just computes the original bus voltages  """
+    V = sqrt(sqrt(2) * array(u))
+    return V
+
 
 if __name__ == '__main__':
     process_answer(jabr5())

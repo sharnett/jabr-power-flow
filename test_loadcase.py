@@ -2,7 +2,7 @@ import pytest
 from loadcase import *
 from jabr import z2y
 from scipy.sparse import dok_matrix
-from numpy import complex64
+from numpy import real, imag
 from numpy.testing import assert_almost_equal
 
 @pytest.fixture
@@ -92,21 +92,33 @@ def test_load_branches_small(case5):
     e2i, _, _ = renumber_buses(demand_dict, root)
     r, x = .01, .1
     g, b = z2y(r, x)
-    y = g + 1j*b
     n = len(e2i)
-    susceptances = dok_matrix((n, n), dtype=complex64)
+    Ghat = dok_matrix((n, n))
+    Bhat = dok_matrix((n, n))
     keys = [(0, 2), (0, 3), (1, 3), (3, 4)]
     for i, j in keys:
-        susceptances[i, j] = y
-        susceptances[j, i] = y
-    assert load_branches(case5, e2i) == susceptances
+        Ghat[i, j] = g
+        Ghat[j, i] = g
+        Bhat[i, j] = b
+        Bhat[j, i] = b
+    branch_list_hat = list(sorted(keys))
+    branch_map_hat = {}
+    for i, (fbus, tbus) in enumerate(branch_list_hat):
+        branch_map_hat[(fbus, tbus)] = i
+        branch_map_hat[(tbus, fbus)] = i
+    G, B, branch_list, branch_map = load_branches(case5, e2i)
+    assert_almost_equal(G.todense(), Ghat.todense())
+    assert_almost_equal(B.todense(), Bhat.todense())
+    assert branch_list == branch_list_hat
+    assert branch_map == branch_map_hat
 
 
 def test_load_branches_medium(case14):
     demand_dict, root, _ = load_buses(case14)
     e2i, _, _ = renumber_buses(demand_dict, root)
     n = len(e2i)
-    susceptances = dok_matrix((n, n), dtype=complex64)
+    Ghat = dok_matrix((n, n))
+    Bhat = dok_matrix((n, n))
     s_dict = {(0, 1): (499.9131600798035-1526.3086523179554j),
               (0, 4): (102.58974549701888-423.4983682334831j),
               (1, 2): (113.50191923073959-478.1863151757718j),
@@ -121,9 +133,20 @@ def test_load_branches_medium(case14):
               (8, 9): (390.2049552447428-1036.5394127060915j),
               (8, 13): (142.4005487019931-302.90504569306034j)}
     for (i, j), y in s_dict.iteritems():
-        susceptances[i, j] = y
-        susceptances[j, i] = y
-    assert load_branches(case14, e2i) == susceptances
+        Ghat[i, j] = y.real
+        Ghat[j, i] = y.real
+        Bhat[i, j] = y.imag
+        Bhat[j, i] = y.imag
+    branch_list_hat = list(sorted(s_dict.keys()))
+    branch_map_hat = {}
+    for i, (fbus, tbus) in enumerate(branch_list_hat):
+        branch_map_hat[(fbus, tbus)] = i
+        branch_map_hat[(tbus, fbus)] = i
+    G, B, branch_list, branch_map = load_branches(case14, e2i)
+    assert_almost_equal(G.todense(), Ghat.todense())
+    assert_almost_equal(B.todense(), Bhat.todense())
+    assert branch_list == branch_list_hat
+    assert branch_map == branch_map_hat
 
 
 def test_load_case():
@@ -133,11 +156,18 @@ def test_load_case():
     demands = [0, 1, 1, 1, 1]
     r, x = .01, .1
     g, b = z2y(r, x)
-    y = g + 1j*b
     n = len(demands)
-    susceptances = dok_matrix((n, n), dtype=complex64)
+    G = dok_matrix((n, n))
+    B = dok_matrix((n, n))
     keys = [(0, 2), (0, 3), (1, 3), (3, 4)]
     for i, j in keys:
-        susceptances[i, j] = y
-        susceptances[j, i] = y
-    assert load_case(casefile) == (demands, susceptances, vhat, i2e)
+        G[i, j] = g
+        G[j, i] = g
+        B[i, j] = b
+        B[j, i] = b
+    c = load_case(casefile)
+    assert c.demands == demands
+    assert c.G == G
+    assert c.B == B
+    assert c.vhat == vhat
+    assert c.i2e == i2e
