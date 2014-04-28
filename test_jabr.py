@@ -26,8 +26,13 @@ def case9():
 
 @pytest.fixture
 def case14():
-    #c = '/Users/srharnett/Dropbox/power/jabr-power-flow/case14_tree.m'
-    c = '/Users/srharnett/Dropbox/power/jabr-power-flow/case14_matpower.m'
+    c = '/Users/srharnett/Dropbox/power/jabr-power-flow/case14_tree.m'
+    return load_case(c)
+
+
+@pytest.fixture
+def case118():
+    c = '/Users/srharnett/Dropbox/power/jabr-power-flow/case118_v2.m'
     return load_case(c)
 
 
@@ -132,13 +137,23 @@ def test_build_mosek_model(case5):
     assert_almost_equal(I, Ihat)
 
 
+def test_parse_mosek_output_file(filename='/Users/srharnett/Dropbox/power/jabr-power-flow/case14.out'):
+    problem_status, solution_status, u_hat, _, _ = parse_mosek_output_file(filename)
+    v = [1.06, 1.045, 1.01, 0.88095, 0.8999, 0.92693, 0.87004, 0.93897,
+         0.82911, 0.8196, 0.9194, 0.91413, 0.90867, 0.78673]
+    u = array(v)**2/sqrt(2)
+    assert problem_status == 'PRIMAL_AND_DUAL_FEASIBLE'
+    assert solution_status == 'OPTIMAL'
+    assert_almost_equal(u, u_hat, decimal=4)
+
+
 def test_full_case5(case5):
     V = {5: 1, 1: 0.85332805, 2: 0.98467413, 3: 0.87294854, 4: 0.85332805}
     u, R, I = build_mosek_model(case5)
     Vhat = recover_original_variables(u, R, I)
     i2e = case5.i2e
     for bus, v in enumerate(Vhat):
-        assert_almost_equal(V[i2e[bus]], v)
+        assert_almost_equal(V[i2e[bus]], v, decimal=4)
 
 
 def test_full_case5q(case5q):
@@ -167,3 +182,27 @@ def test_full_case14(case14):
     i2e = case14.i2e
     for bus, v in enumerate(Vhat):
         assert_almost_equal(V[i2e[bus]], v, decimal=4)
+
+
+def test_full_case118(case118):
+    V = [0, 0.955, 0.98047, 0.96243, 0.998, 1.0032, 0.99, 0.98869, 1.015, 1.023,
+         1.05, 0.98107, 0.99, 0.96077, 0.98618, 0.97, 0.95675, 0.98835, 0.973,
+         0.962, 0.91971, 0.9262, 0.94582, 0.99291, 0.992, 1.05, 1.015, 0.968,
+         0.94859, 0.93822, 0.96681, 0.967, 0.963, 0.96438, 0.984, 0.97959, 0.98,
+         0.98799, 0.94192, 0.96662, 0.97, 0.95377, 0.985, 0.88745, 0.92024,
+         0.94488, 1.005, 1.0021, 1.016, 1.025, 1.0118, 0.97702, 0.97017,
+         0.93377,  0.955, 0.952, 0.954, 1.002, 0.97162, 0.985, 0.99246, 0.995,
+         0.998, 0.96269, 0.97828, 1.005, 1.05, 1.0368, 0.99932, 1.035, 0.984,
+         0.98626, 0.98, 0.991, 0.958, 0.95473, 0.943, 1.006, 1.0001, 1.0115,
+         1.04, 0.98881, 0.96363, 0.96244, 0.97699, 0.985, 0.98392, 1.015,
+         0.99053, 1.005, 0.985, 0.98, 0.99, 0.98075, 0.96795, 0.9478, 0.99708,
+         1.0291, 1.0231, 1.01, 1.017, 0.95209, 0.97567, 1.01, 0.971, 0.965,
+         0.94646, 0.952, 0.95931, 0.95753, 0.973, 0.98, 0.975, 0.993, 0.95995,
+         0.9587, 1.005, 0.97135, 0.94188]
+    u, R, I = build_mosek_model(case118)
+    Vhat = recover_original_variables(u, R, I)
+    Vhat_i = [0]*(len(Vhat)+1)
+    i2e = case118.i2e
+    for bus, v in enumerate(Vhat):
+        Vhat_i[i2e[bus]] = v
+    assert_almost_equal(V, Vhat_i)

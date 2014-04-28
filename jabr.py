@@ -1,8 +1,11 @@
 from __future__ import division
+import sh
 from mosek.fusion import Matrix, DenseMatrix, Model, Expr, Domain, ObjectiveSense, SolutionError
 from numpy import array, sqrt, real, imag
 from math import sin, cos, asin, pi
 from scipy.sparse import dok_matrix, hstack
+from datetime import datetime
+from tempfile import NamedTemporaryFile
 
 S2 = sqrt(2)
 
@@ -175,16 +178,56 @@ def build_mosek_model(case):
 
         M.objective("maxRsum", ObjectiveSense.Maximize, Expr.sum(R))
         out_file = open('/Users/srharnett/Dropbox/power/jabr-power-flow/mosek.log', 'a')
+        out_file.write('\n' + str(datetime.now()) + '\n')
         M.setLogHandler(out_file)
-        #M.setSolverParam("intpntCoTolPfeas", 1.0e-2)
-        #M.setSolverParam("intpntCoTolDfeas", 1.0e-2)
-        #M.setSolverParam("intpntCoTolRelGap", 1.0e-2)
+        M.writeTask('mosek.opf')
         M.solve()
         try:
-            return u.level(), R.level(), I.level()
+            raise SolutionError
+            #return u.level(), R.level(), I.level()
         except SolutionError:
-            status = M.getPrimalSolutionStatus()
-            raise SolutionError("mosek failed to converge: %s (check log)" % status)
+            out_file.write("\nPython thinks it didn't converge, trying again from command line\n")
+            # this is crazy. the Python solver reports unknown solution status,
+            # even though the log clearly shows it converged. run the command
+            # line solver and parse the output.
+            #with NamedTemporaryFile() as t:
+                #sh.mosek('mosek.opf', itro=t.name)
+            filename = '/Users/srharnett/Dropbox/power/jabr-power-flow/wtf.sol'
+            try:
+                sh.mosek('mosek.opf', '-itro', filename, '-p', 'mosek.par',
+                         '-q', 'wtf.log', _out='wtf.stdout', _err='wtf.stderr')
+            except sh.ErrorReturnCode_22:
+                out_file.write("\nreturn code 22, whatever that means\n")
+            problem_status, solution_status, u, R, I = parse_mosek_output_file(filename)
+            if solution_status not in ('OPTIMAL', 'NEAR_OPTIMAL'):
+                raise SolutionError("mosek failed to converge: %s (check log)" % solution_status)
+            return u, R, I
+
+
+def parse_mosek_output_file(filename):
+    u, R, I = [], [], []
+    with open(filename) as f:
+        line = f.readline()  # NAME
+        problem_status = f.readline().split()[3].strip()
+        solution_status = f.readline().split()[3].strip()
+        while line != 'VARIABLES':
+            line = f.readline().strip()
+        f.readline()
+        line = f.readline().split()
+        var, val = line[1], float(line[3])
+        while var[0] != 'R':
+            u.append(val)
+            line = f.readline().split()
+            var, val = line[1], float(line[3])
+        while var[0] != 'I':
+            R.append(val)
+            line = f.readline().split()
+            var, val = line[1], float(line[3])
+        while var[0] != 'c':
+            I.append(val)
+            line = f.readline().split()
+            var, val = line[1], float(line[3])
+    return problem_status, solution_status, u, R, I
 
 
 def recover_original_variables(u, R, I):
