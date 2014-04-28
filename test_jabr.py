@@ -6,33 +6,35 @@ from scipy.sparse import coo_matrix
 from numpy import array
 
 
+CASE_DIRECTORY = '/Users/srharnett/Dropbox/power/jabr-power-flow/cases/'
+
 @pytest.fixture
 def case5():
-    c = '/Users/srharnett/Dropbox/power/jabr-power-flow/case5_renumber_tree.m'
+    c = CASE_DIRECTORY + 'case5_renumber_tree.m'
     return load_case(c)
 
 
 @pytest.fixture
 def case5q():
-    c = '/Users/srharnett/Dropbox/power/jabr-power-flow/case5_with_q.m'
+    c = CASE_DIRECTORY + 'case5_with_q.m'
     return load_case(c)
 
 
 @pytest.fixture
 def case9():
-    c = '/Users/srharnett/Dropbox/power/jabr-power-flow/case9_tree.m'
+    c = CASE_DIRECTORY + 'case9_tree.m'
     return load_case(c)
 
 
 @pytest.fixture
 def case14():
-    c = '/Users/srharnett/Dropbox/power/jabr-power-flow/case14_tree.m'
+    c = CASE_DIRECTORY + 'case14_tree.m'
     return load_case(c)
 
 
 @pytest.fixture
 def case118():
-    c = '/Users/srharnett/Dropbox/power/jabr-power-flow/case118_v2.m'
+    c = CASE_DIRECTORY + 'case118_v2.m'
     return load_case(c)
 
 
@@ -137,7 +139,7 @@ def test_build_mosek_model(case5):
     assert_almost_equal(I, Ihat)
 
 
-def test_parse_mosek_output_file(filename='/Users/srharnett/Dropbox/power/jabr-power-flow/case14.out'):
+def test_parse_mosek_output_file(filename=CASE_DIRECTORY+'case14.out'):
     problem_status, solution_status, u_hat, _, _ = parse_mosek_output_file(filename)
     v = [1.06, 1.045, 1.01, 0.88095, 0.8999, 0.92693, 0.87004, 0.93897,
          0.82911, 0.8196, 0.9194, 0.91413, 0.90867, 0.78673]

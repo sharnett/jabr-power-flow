@@ -5,14 +5,16 @@ from scipy.sparse import dok_matrix
 from numpy import real, imag
 from numpy.testing import assert_almost_equal
 
+CASE_DIRECTORY = '/Users/srharnett/Dropbox/power/jabr-power-flow/cases/'
+
 @pytest.fixture
 def case5():
-    return open('/Users/srharnett/Dropbox/power/jabr-power-flow/case5_renumber_tree.m')
+    return open(CASE_DIRECTORY + 'case5_renumber_tree.m')
 
 
 @pytest.fixture
 def case14():
-    return open('/Users/srharnett/Dropbox/power/jabr-power-flow/case14_tree.m')
+    return open(CASE_DIRECTORY + 'case14_tree.m')
 
 
 def test_load_buses_small(case5):
@@ -150,7 +152,7 @@ def test_load_branches_medium(case14):
 
 
 def test_load_case():
-    casefile = '/Users/srharnett/Dropbox/power/jabr-power-flow/case5_renumber_tree.m'
+    casefile = CASE_DIRECTORY + 'case5_renumber_tree.m'
     vhat = 1
     i2e = [5, 1, 2, 3, 4]
     demands = [0, 1, 1, 1, 1]
