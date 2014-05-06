@@ -1,0 +1,9 @@
+mpc = loadcase('case85.m');
+mpc_og = loadcase('case85.m');
+mpc.bus(:, 4) = mpc_og.bus(:, 3)*tan(acos(.7));
+mpc.bus(:, 3:4) = mpc.bus(:, 3:4)/1000;
+mpc.baseMVA = .011;
+mpc.branch(:, 3:4) = mpc_og.branch(:, 3:4)/11000;
+mpc.gen(3:4) = [2.9 2.8];
+opt = mpoption('OUT_BUS', 0, 'OUT_BRANCH', 0, 'OUT_SYS_SUM', 1, 'PF_MAX_IT', 50);
+r = runpf(mpc, opt)
