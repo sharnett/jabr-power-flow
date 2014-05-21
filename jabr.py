@@ -1,5 +1,6 @@
-from __future__ import division
+from __future__ import division, print_function
 import sh
+from gurobipy import Model as GurobiModel, GRB, quicksum
 from mosek.fusion import Matrix, DenseMatrix, Model, Expr, Domain, ObjectiveSense, SolutionError
 from numpy import array, sqrt, real, imag
 from math import sin, cos, asin, pi
@@ -228,6 +229,50 @@ def parse_mosek_output_file(filename):
             line = f.readline().split()
             var, val = line[1], float(line[3])
     return problem_status, solution_status, u, R, I
+
+
+def build_gurobi_model(case):
+    G, B = case.G, case.B
+    P = real(case.demands)
+    Q = imag(case.demands)
+    branches = case.branch_list
+    n = len(case.demands)
+    vhat = case.vhat
+    s2 = 2**.5
+    gens = {bus: gen.v for bus, gen in case.gens.items()}
+    del gens[0]
+
+    m = GurobiModel("jabr")
+    u = [m.addVar(name='u_%d'%i) for i in range(n)]
+    R = {(i, j): m.addVar(name='R_%d_%d' % (i, j)) for i, j in branches}
+    I = {(i, j): m.addVar(lb=-GRB.INFINITY, name='I_%d_%d' % (i, j)) for i, j in branches}
+    for i, j in branches:
+        R[j, i] = R[i, j]
+        I[j, i] = I[i, j]
+    m.update()
+    m.addConstr(u[0] == vhat*vhat/s2, 'u0')
+    for gen, v in gens.iteritems():
+        m.addConstr(u[gen] == v*v/s2, 'u%d' % gen)
+    for i, j in branches:
+        m.addQConstr(2*u[i]*u[j] >= R[i,j]*R[i,j] + I[i,j]*I[i,j], 'cone_%d_%d' % (i, j))
+    k = lambda i: (j for j in B[i, :].nonzero()[1])
+    s = lambda i, j: 1 if i < j else -1
+    for i in range(1, n):
+        m.addConstr(-s2*u[i]*G[i, :].sum() + quicksum(G[i,j]*R[i,j] + B[i,j]*s(i,j)*I[i,j] for j in k(i)) == P[i],
+                    'real_flow_%d_%d' % (i, j))
+        if i in gens:
+            continue
+        m.addConstr(s2*u[i]*B[i, :].sum() + quicksum(-B[i,j]*R[i,j] + G[i,j]*s(i,j)*I[i,j] for j in k(i)) == Q[i],
+                    'reac_flow_%d_%d' % (i, j))
+    m.setObjective(quicksum(R[i,j] for i, j in branches), sense=GRB.MAXIMIZE)
+    m.params.outputFlag = 0
+    m.optimize()
+    if m.status != 2:
+        raise SolutionError("gurobi failed to converge: %s (check log)" % m.status)
+    u_opt = [x.getAttr('x') for x in u]
+    R_opt = [x.getAttr('x') for x in R.values()]
+    I_opt = [x.getAttr('x') for x in I.values()]
+    return u_opt, R_opt, I_opt
 
 
 def recover_original_variables(u, R, I):

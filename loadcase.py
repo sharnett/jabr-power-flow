@@ -1,5 +1,6 @@
 from jabr import z2y
 from scipy.sparse import dok_matrix
+from collections import namedtuple
 
 
 def load_buses(casefileobj):
@@ -46,8 +47,9 @@ def renumber_buses(demand_dict, root):
 
 
 def load_gens(casefileobj, e2i):
-    """ returns a dictionary of generator buses and their power output. internal
-    numbering """
+    """ returns a dictionary mapping generator buses to their power output and
+     voltage. internal numbering """
+    Gen = namedtuple('Gen', ['p', 'v'])
     line = ''
     gens = {}
     while line.find("mpc.gen = [") == -1:
@@ -55,8 +57,8 @@ def load_gens(casefileobj, e2i):
     line = casefileobj.readline()
     while line.find("];") == -1:
         words = line.split()
-        bus, p, q = e2i[int(words[0])], float(words[1]), float(words[2])
-        gens[bus] = p+q*1j
+        bus, p, v = e2i[int(words[0])], float(words[1]), float(words[5])
+        gens[bus] = Gen(p, v)
         line = casefileobj.readline()
     return gens
 
@@ -64,9 +66,9 @@ def load_gens(casefileobj, e2i):
 def adjust_demands(demands, gens):
     """ subtracts off any power generated at non-slack buses. internal numbering
     """
-    for (bus, p) in gens.iteritems():
+    for (bus, gen) in gens.iteritems():
         if bus != 0:
-            demands[bus] -= p
+            demands[bus] -= gen.p
 
 
 def load_branches(casefileobj, e2i):
@@ -131,5 +133,6 @@ def load_case(casefile):
     c.branch_map = branch_map
     c.vhat = vhat
     c.i2e = i2e
+    c.gens = gens
     return c
 

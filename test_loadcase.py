@@ -54,19 +54,25 @@ def test_renumber_buses_medium(case14):
 def test_load_gens_small(case5):
     demand_dict, root, _ = load_buses(case5)
     e2i, _, _ = renumber_buses(demand_dict, root)
-    gens = {0: 4.1590465+1.590465j}
-    assert load_gens(case5, e2i) == gens
+    gens = {0: (4.1590465, 1.0)}
+    gens_hat = load_gens(case5, e2i)
+    for bus, gen in gens.items():
+        assert gens_hat[bus].p == gen[0]
+        assert gens_hat[bus].v == gen[1]
 
 
 def test_load_gens_med(case14):
     demand_dict, root, _ = load_buses(case14)
     e2i, _, _ = renumber_buses(demand_dict, root)
-    gens = {0: 238.679924+29.9008363j,
-            1: 40+18.2662045j,
-            2: 32.4753441j,
-            5: 28.9509521j,
-            7: 36.7439181j}
-    assert load_gens(case14, e2i) == gens
+    gens = {0: (238.679924, 1.06),
+            1: (40, 1.045),
+            2: (0, 1.01),
+            5: (0, 1.07),
+            7: (0, 1.09)}
+    gens_hat = load_gens(case14, e2i)
+    for bus, gen in gens.items():
+        assert gens_hat[bus].p == gen[0]
+        assert gens_hat[bus].v == gen[1]
 
 
 def test_adjust_demands_small(case5):
@@ -79,8 +85,8 @@ def test_adjust_demands_small(case5):
 
 
 def test_adjust_demands_medium(case14):
-    adjusted_demands = [0, -18.3-5.5662045j, 94.2-13.4753441j, 47.8-3.9j,
-                        7.6+1.6j, 11.2-21.4509521j, 0, -36.7439181j, 29.5+16.6j,
+    adjusted_demands = [0, -18.3+12.7j, 94.2+19j, 47.8-3.9j,
+                        7.6+1.6j, 11.2+7.5j, 0, 0, 29.5+16.6j,
                         9+5.8j, 3.5+1.8j, 6.1+1.6j, 13.5+5.8j, 14.9+5j]
     demand_dict, root, _ = load_buses(case14)
     e2i, _, demands = renumber_buses(demand_dict, root)
