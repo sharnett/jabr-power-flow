@@ -151,8 +151,8 @@ def test_parse_mosek_output_file(filename=CASE_DIRECTORY+'case14.out'):
 
 def test_full_case5(case5):
     V = {5: 1, 1: 0.85332805, 2: 0.98467413, 3: 0.87294854, 4: 0.85332805}
-    u, R, I = build_mosek_model(case5)
-    Vhat = recover_original_variables(u, R, I)
+    u, R, I = build_gurobi_model(case5)
+    Vhat, theta = recover_original_variables(u, I)
     i2e = case5.i2e
     for bus, v in enumerate(Vhat):
         assert_almost_equal(V[i2e[bus]], v, decimal=4)
@@ -160,8 +160,8 @@ def test_full_case5(case5):
 
 def test_full_case5q(case5q):
     V = {5: 1, 1: 0.79806, 2: 0.97430, 3: 0.82022, 4: 0.78499}
-    u, R, I = build_mosek_model(case5q)
-    Vhat = recover_original_variables(u, R, I)
+    u, R, I = build_gurobi_model(case5q)
+    Vhat, theta = recover_original_variables(u, I)
     i2e = case5q.i2e
     for bus, v in enumerate(Vhat):
         assert_almost_equal(V[i2e[bus]], v, decimal=4)
@@ -169,8 +169,8 @@ def test_full_case5q(case5q):
 
 def test_full_case9(case9):
     V = [0, 1, 1, 1, 0.95627, 0.93106, 0.98732, 0.91403, 0.95389, 0.90988]
-    u, R, I = build_mosek_model(case9)
-    Vhat = recover_original_variables(u, R, I)
+    u, R, I = build_gurobi_model(case9)
+    Vhat, theta = recover_original_variables(u, I)
     i2e = case9.i2e
     for bus, v in enumerate(Vhat):
         assert_almost_equal(V[i2e[bus]], v, decimal=4)
@@ -179,11 +179,17 @@ def test_full_case9(case9):
 def test_full_case14(case14):
     V = [0, 1.06000, 1.04500, 1.01000, 0.98737, 0.99732, 1.07000, 1.00938,
          1.09000, 0.97570, 0.96766, 1.06350, 1.05898, 1.05428, 0.94052]
+    theta = [0.00000, -2.46611, -12.99258, -21.40732, -18.82987, -23.50133,
+             -27.88832, -27.88832, -31.33324, -31.68280, -23.76577, -24.19095,
+             -24.19971, -33.45227]
     u, R, I = build_gurobi_model(case14)
-    Vhat = recover_original_variables(u, R, I)
+    Vhat, theta_hat = recover_original_variables(u, I)
+    matpower_theta_hat = {case14.i2e[x]: 180/pi*theta_hat[x] for x in theta_hat}
+    matpower_theta_hat = array([x[1] for x in sorted(matpower_theta_hat.items())])
     i2e = case14.i2e
     for bus, v in enumerate(Vhat):
         assert_almost_equal(V[i2e[bus]], v, decimal=4)
+    assert_almost_equal(theta, matpower_theta_hat, decimal=4)
 
 
 def test_full_case118(case118):
@@ -203,7 +209,7 @@ def test_full_case118(case118):
          0.97100, 0.96500, 0.94646, 0.95200, 0.95931, 0.95753, 0.97300, 0.98000,
          0.97500, 0.99300, 0.95995, 0.95870, 1.00500, 0.97135, 0.94188]
     u, R, I = build_gurobi_model(case118)
-    Vhat = recover_original_variables(u, R, I)
+    Vhat, theta = recover_original_variables(u, I)
     Vhat_e = [0]*(len(Vhat)+1) # external numbering
     i2e = case118.i2e
     for bus, v in enumerate(Vhat):

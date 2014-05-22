@@ -6,7 +6,7 @@ from numpy import array, sqrt, real, imag
 from math import sin, cos, asin, pi
 from scipy.sparse import dok_matrix, hstack
 from datetime import datetime
-from tempfile import NamedTemporaryFile
+from collections import defaultdict, deque
 
 S2 = sqrt(2)
 
@@ -270,15 +270,40 @@ def build_gurobi_model(case):
     if m.status != 2:
         raise SolutionError("gurobi failed to converge: %s (check log)" % m.status)
     u_opt = [x.getAttr('x') for x in u]
-    R_opt = [x.getAttr('x') for x in R.values()]
-    I_opt = [x.getAttr('x') for x in I.values()]
+    R_opt = {(i, j): x.getAttr('x') for (i, j), x in R.items()}
+    I_opt = {(i, j): x.getAttr('x') for (i, j), x in I.items()}
+    #for (i, j), t in I_opt.items():
+        #if j < i:
+            #I_opt[(i, j)] = -t
     return u_opt, R_opt, I_opt
 
 
-def recover_original_variables(u, R, I):
-    """ incomplete. right now just computes the original bus voltages  """
+def recover_original_variables(u, I):
+    """ given Jabr variables u and I, return bus voltages and angles """
     V = sqrt(sqrt(2) * array(u))
-    return V
+    theta_branch = {(i, j): asin(I[(i, j)]/(V[i]*V[j])) for (i, j) in I}
+    theta_bus = recover_bus_angles(theta_branch)
+    return V, theta_bus
+
+
+def recover_bus_angles(theta_branch):
+    """ assumes 0 is the root. traverses the tree and converts branch voltage
+        angles to bus voltage angles """
+    A = defaultdict(list) # adjacency matrix
+    theta_bus = {0: 0}
+    for i, j in theta_branch.keys():
+        A[i] += [j]
+    q = deque([0])
+    while q:
+        parent = q.popleft()
+        for child in A[parent]:
+            if child not in theta_bus:
+                theta_ij = theta_branch[(parent, child)]
+                if parent > child:
+                    theta_ij *= -1
+                theta_bus[child] = theta_bus[parent] - theta_ij
+                q.append(child)
+    return theta_bus
 
 
 if __name__ == '__main__':
