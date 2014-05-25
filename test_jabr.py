@@ -184,7 +184,7 @@ def test_full_case14(case14):
              -24.19971, -33.45227]
     u, R, I = build_gurobi_model(case14)
     Vhat, theta_hat = recover_original_variables(u, I)
-    matpower_theta_hat = {case14.i2e[x]: 180/pi*theta_hat[x] for x in theta_hat}
+    matpower_theta_hat = {case14.i2e[i]: 180/pi*t for i, t in enumerate(theta_hat)}
     matpower_theta_hat = array([x[1] for x in sorted(matpower_theta_hat.items())])
     i2e = case14.i2e
     for bus, v in enumerate(Vhat):

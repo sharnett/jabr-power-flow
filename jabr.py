@@ -266,6 +266,7 @@ def build_gurobi_model(case):
                     'reac_flow_%d_%d' % (i, j))
     m.setObjective(quicksum(R[i,j] for i, j in branches), sense=GRB.MAXIMIZE)
     m.params.outputFlag = 0
+    #m.params.barQCPConvTol = 5e-10
     m.optimize()
     if m.status != 2:
         raise SolutionError("gurobi failed to converge: %s (check log)" % m.status)
@@ -290,19 +291,20 @@ def recover_bus_angles(theta_branch):
     """ assumes 0 is the root. traverses the tree and converts branch voltage
         angles to bus voltage angles """
     A = defaultdict(list) # adjacency matrix
-    theta_bus = {0: 0}
+    theta_bus_dict = {0: 0}
     for i, j in theta_branch.keys():
         A[i] += [j]
     q = deque([0])
     while q:
         parent = q.popleft()
         for child in A[parent]:
-            if child not in theta_bus:
+            if child not in theta_bus_dict:
                 theta_ij = theta_branch[(parent, child)]
                 if parent > child:
                     theta_ij *= -1
-                theta_bus[child] = theta_bus[parent] - theta_ij
+                theta_bus_dict[child] = theta_bus_dict[parent] - theta_ij
                 q.append(child)
+    theta_bus = [theta_bus_dict[i] for i in range(max(theta_bus_dict.keys())+1)]
     return theta_bus
 
 
