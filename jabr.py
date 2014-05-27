@@ -133,9 +133,9 @@ def recover_bus_angles(theta_branch):
 def solve(casefile):
     """ given a matpower casefile, solves the power flow using the Jabr method
         and returns a dictionary mapping bus number to
-        (voltage magnitude, voltage angle) tuples. angles are in degrees
+        (voltage magnitude, voltage angle) tuples. angles are in radians
     """
-    case = load_case('cases/case5_renumber_tree.m')
+    case = load_case(casefile)
     u, R, I = build_gurobi_model(case)
     V, theta = recover_original_variables(u, I)
     i2e = case.i2e
