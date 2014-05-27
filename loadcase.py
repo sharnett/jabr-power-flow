@@ -1,6 +1,10 @@
-from jabr import z2y
 from scipy.sparse import dok_matrix
 from collections import namedtuple
+
+
+def z2y(r, x):
+    """ converts impedance Z=R+jX to admittance Y=G+jB """
+    return r/(r**2+x**2), -x/(r**2+x**2)
 
 
 def load_buses(casefileobj):
@@ -119,6 +123,7 @@ def load_case(casefile):
     branches, map of branches to list index, root voltage, and internal to
     external numbering map. uses internal numbering
     """
+    # TODO be consistent, should it be load_case or loadcase?
     casefileobj = open(casefile)
     demand_dict, root, vhat = load_buses(casefileobj)
     e2i, i2e, demands = renumber_buses(demand_dict, root)

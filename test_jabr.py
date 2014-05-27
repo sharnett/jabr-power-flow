@@ -1,9 +1,9 @@
 import pytest
 from jabr import *
-from loadcase import load_case
+from loadcase import load_case, z2y
 from numpy.testing import assert_almost_equal, assert_allclose
 from scipy.sparse import coo_matrix
-from numpy import array
+from numpy import array, pi
 
 
 CASE_DIRECTORY = '/Users/srharnett/Dropbox/power/jabr-power-flow/cases/'
@@ -38,6 +38,7 @@ def case118():
     return load_case(c)
 
 
+# TODO move these to test_loadcase
 def test_z2y_simple():
     r, x = 0, 1
     assert z2y(r, x) == (0, -1)
@@ -129,31 +130,12 @@ def test_build_contraint_matrix(case5):
     assert_almost_equal(Areac_hat.todense(), Areac.todense())
 
 
-def test_build_mosek_model(case5):
-    U = [0.70710678, 0.51489306, 0.68559881, 0.53884305, 0.51489306]
-    R = [0.97958314, 0.81977994, 0.73816875, 0.73816875]
-    I = [0.1, 0.3, -0.1, 0.1]
-    Uhat, Rhat, Ihat = build_mosek_model(case5)
-    assert_almost_equal(U, Uhat)
-    assert_almost_equal(R, Rhat)
-    assert_almost_equal(I, Ihat)
-
-
-def test_parse_mosek_output_file(filename=CASE_DIRECTORY+'case14.out'):
-    problem_status, solution_status, u_hat, _, _ = parse_mosek_output_file(filename)
-    v = [1.06, 1.045, 1.01, 0.88095, 0.8999, 0.92693, 0.87004, 0.93897,
-         0.82911, 0.8196, 0.9194, 0.91413, 0.90867, 0.78673]
-    u = array(v)**2/sqrt(2)
-    assert problem_status == 'PRIMAL_AND_DUAL_FEASIBLE'
-    assert solution_status == 'OPTIMAL'
-    assert_almost_equal(u, u_hat, decimal=4)
-
-
 def test_full_case5(case5):
     V = {5: 1, 1: 0.85332805, 2: 0.98467413, 3: 0.87294854, 4: 0.85332805}
     u, R, I = build_gurobi_model(case5)
     Vhat, theta = recover_original_variables(u, I)
     i2e = case5.i2e
+    # TODO make a vectorized version of this
     for bus, v in enumerate(Vhat):
         assert_almost_equal(V[i2e[bus]], v, decimal=4)
 
@@ -163,6 +145,7 @@ def test_full_case5q(case5q):
     u, R, I = build_gurobi_model(case5q)
     Vhat, theta = recover_original_variables(u, I)
     i2e = case5q.i2e
+    # TODO make a vectorized version of this
     for bus, v in enumerate(Vhat):
         assert_almost_equal(V[i2e[bus]], v, decimal=4)
 
@@ -172,6 +155,7 @@ def test_full_case9(case9):
     u, R, I = build_gurobi_model(case9)
     Vhat, theta = recover_original_variables(u, I)
     i2e = case9.i2e
+    # TODO make a vectorized version of this
     for bus, v in enumerate(Vhat):
         assert_almost_equal(V[i2e[bus]], v, decimal=4)
 
@@ -187,6 +171,7 @@ def test_full_case14(case14):
     matpower_theta_hat = {case14.i2e[i]: 180/pi*t for i, t in enumerate(theta_hat)}
     matpower_theta_hat = array([x[1] for x in sorted(matpower_theta_hat.items())])
     i2e = case14.i2e
+    # TODO make a vectorized version of this
     for bus, v in enumerate(Vhat):
         assert_almost_equal(V[i2e[bus]], v, decimal=4)
     assert_almost_equal(theta, matpower_theta_hat, decimal=4)
@@ -212,6 +197,7 @@ def test_full_case118(case118):
     Vhat, theta = recover_original_variables(u, I)
     Vhat_e = [0]*(len(Vhat)+1) # external numbering
     i2e = case118.i2e
+    # TODO make a vectorized version of this
     for bus, v in enumerate(Vhat):
         Vhat_e[i2e[bus]] = v
     assert_allclose(V, Vhat_e, rtol=4e-2)
